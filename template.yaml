@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Runtime: nodejs10.x
+    MemorySize: 128
+    Timeout: 10
+    Handler: index.handler
+
+Resources:
+  Websocket:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: console-watch-websocket
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.message
+
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Websocket
+      RouteKey: $connect
+      AuthorizationType: NONE
+      Target: !Sub integrations/${ConnectIntegration}
+
+  ConnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref Websocket
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ConnectFunction.Arn}/invocations
+
+  WebsocketDeployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+    - ConnectRoute
+    Properties:
+      ApiId: !Ref Websocket
+
+  WebsocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      StageName: prod
+      DeploymentId: !Ref WebsocketDeployment
+      ApiId: !Ref Websocket
+
+  ConnectFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/Connect
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action: lambda:InvokeFunction
+          Resource: !GetAtt SendFunction.Arn
+      Environment:
+        Variables:
+          SEND_FUNCTION: !Ref SendFunction
+          WS_REGION: !Ref AWS::Region
+
+  SendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/Send
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action: execute-api:ManageConnections
+          Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Websocket}/*
+
+  ConnectPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+    - Websocket
+    - ConnectFunction
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ConnectFunction
+      Principal: apigateway.amazonaws.com
+
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: '*.console.watch'
+      SubjectAlternativeNames:
+      - console.watch
+      - '*.console.watch'
+      DomainValidationOptions:
+      - DomainName: console.watch
+        ValidationDomain: console.watch
+      ValidationMethod: DNS
+
+  WebsocketDomainName:
+    Type: AWS::ApiGatewayV2::DomainName
+    Properties:
+      DomainName: ws.console.watch
+      DomainNameConfigurations:
+      - CertificateArn: !Ref Certificate
+
+  WebsocketMapping:
+    Type: AWS::ApiGatewayV2::ApiMapping
+    Properties:
+      ApiId: !Ref Websocket
+      DomainName: !Ref WebsocketDomainName
+      Stage: !Ref WebsocketStage
+
+########
+
+  Web:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+
+  WebDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      CertificateArn: !Ref Certificate
+      DomainName: console.watch
+
+  WebBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      DomainName: !Ref WebDomainName
+      RestApiId: !Ref Web
+      Stage: !Ref Web.Stage
+
+  PostFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/Post
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action: execute-api:ManageConnections
+          Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Websocket}/*
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Web
+            Path: /{id}
+            Method: post
+      Environment:
+        Variables:
+          WS_ENDPOINT: !Sub https://${Websocket}.execute-api.${AWS::Region}.amazonaws.com/${WebsocketStage}
+
+  GetHTMLFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/GetHTML
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Web
+            Path: /
+            Method: get
+
+  GetJSFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/GetJS
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Web
+            Path: /index.js
+            Method: get
