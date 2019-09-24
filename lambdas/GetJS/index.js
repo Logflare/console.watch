@@ -7,10 +7,11 @@ let init = function(cloudflare) {
   let connectionStart = Date.now()
 
   $console.addEventListener('click', event => {
-    event.preventDefault()
 
     switch (event.target.className) {
       case 'copycloudflare':
+        event.preventDefault()
+
         copy(code)
 
         $console.insertAdjacentHTML('beforeend', `
