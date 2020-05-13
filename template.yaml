@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 
 Globals:
@@ -34,7 +34,7 @@ Resources:
   WebsocketDeployment:
     Type: AWS::ApiGatewayV2::Deployment
     DependsOn:
-    - ConnectRoute
+      - ConnectRoute
     Properties:
       ApiId: !Ref Websocket
 
@@ -50,10 +50,10 @@ Resources:
     Properties:
       CodeUri: lambdas/Connect
       Policies:
-      - Statement:
-        - Effect: Allow
-          Action: lambda:InvokeFunction
-          Resource: !GetAtt SendFunction.Arn
+        - Statement:
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !GetAtt SendFunction.Arn
       Environment:
         Variables:
           SEND_FUNCTION: !Ref SendFunction
@@ -64,16 +64,16 @@ Resources:
     Properties:
       CodeUri: lambdas/Send
       Policies:
-      - Statement:
-        - Effect: Allow
-          Action: execute-api:ManageConnections
-          Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Websocket}/*
+        - Statement:
+            - Effect: Allow
+              Action: execute-api:ManageConnections
+              Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Websocket}/*
 
   ConnectPermission:
     Type: AWS::Lambda::Permission
     DependsOn:
-    - Websocket
-    - ConnectFunction
+      - Websocket
+      - ConnectFunction
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Ref ConnectFunction
@@ -82,13 +82,13 @@ Resources:
   Certificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: '*.console.watch'
+      DomainName: "*.console.watch"
       SubjectAlternativeNames:
-      - console.watch
-      - '*.console.watch'
+        - console.watch
+        - "*.console.watch"
       DomainValidationOptions:
-      - DomainName: console.watch
-        ValidationDomain: console.watch
+        - DomainName: console.watch
+          ValidationDomain: console.watch
       ValidationMethod: DNS
 
   WebsocketDomainName:
@@ -96,7 +96,7 @@ Resources:
     Properties:
       DomainName: ws.console.watch
       DomainNameConfigurations:
-      - CertificateArn: !Ref Certificate
+        - CertificateArn: !Ref Certificate
 
   WebsocketMapping:
     Type: AWS::ApiGatewayV2::ApiMapping
@@ -105,7 +105,7 @@ Resources:
       DomainName: !Ref WebsocketDomainName
       Stage: !Ref WebsocketStage
 
-########
+  ########
 
   Web:
     Type: AWS::Serverless::Api
@@ -130,10 +130,10 @@ Resources:
     Properties:
       CodeUri: lambdas/Post
       Policies:
-      - Statement:
-        - Effect: Allow
-          Action: execute-api:ManageConnections
-          Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Websocket}/*
+        - Statement:
+            - Effect: Allow
+              Action: execute-api:ManageConnections
+              Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Websocket}/*
       Events:
         Post:
           Type: Api

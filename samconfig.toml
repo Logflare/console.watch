@@ -1,0 +1,11 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "console-watch"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-txwr9oj7x0rw"
+s3_prefix = "console-watch"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+
